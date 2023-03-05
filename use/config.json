@@ -1,0 +1,78 @@
+{
+    "output_file": "output.txt",
+    "motor_mode": "AC",
+    "sim_config": {
+        "config1": {
+            "duration": 10000,
+            "step": 100
+        },
+        "config2": {
+            "duration": 5,
+            "step": 50
+        }
+    },
+    "pwm_config": {
+        "config1": {
+            "name": "pwm1",
+            "min_voltage": 1.0,
+            "max_voltage": 5.0,
+            "duty": 0.5,
+            "frequency": 100.0
+        },
+        "config2": {
+            "name": "pwm2",
+            "min_voltage": 0.5,
+            "max_voltage": 4.0,
+            "duty": 0.2,
+            "frequency": 50.0
+        }
+    },
+    "mot_config": {
+        "config1": {
+            "name": "motor1",
+            "voltage": 220.0,
+            "power": 1000.0,
+            "current": 5.0,
+            "statres": 0.1,
+            "emc": 0.01,
+            "statine": 0.001,
+            "efficiency": 0.8,
+            "maxcurr": 10.0,
+            "maxspeed": 3000.0,
+            "torque": 0.02,
+            "loadtorque": 0.01
+        },
+        "config2": {
+            "name": "motor2",
+            "voltage": 110.0,
+            "power": 500.0,
+            "current": 2.5,
+            "statres": 0.2,
+            "emc": 0.02,
+            "statine": 0.002,
+            "efficiency": 0.85,
+            "maxcurr": 5.0,
+            "maxspeed": 2000.0,
+            "torque": 0.01,
+            "loadtorque": 0.005
+        }
+    },
+    "env_config": {
+        "config1": {
+            "name": "env1",
+            "temperature": 25,
+            "humidity": 50,
+            "pressure": 1013
+        },
+        "config2": {
+            "name": "env2",
+            "temperature": 20,
+            "humidity": 60,
+            "pressure": 1010
+        }
+    },
+    "sim_default": "config1",
+    "pwm_default": "config1",
+    "env_default": "config1",
+    "mot_default": "config1"
+}

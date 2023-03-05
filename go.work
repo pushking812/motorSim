@@ -1,0 +1,6 @@
+go 1.20
+
+use ./config
+use ./simulation
+use ./output
+use ./use
