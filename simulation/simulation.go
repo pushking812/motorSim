@@ -3,6 +3,7 @@ package simulation
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -135,6 +136,7 @@ type currentValues struct {
 	voltage    float64 // текущее напряжение
 	power      float64 // текущая мощность
 	current    float64 // текущий ток
+	torque     float64 // крутящий момент
 	stepIndex  int     // номер шага симуляции
 }
 
@@ -148,6 +150,7 @@ type AverageValues struct {
 	Voltage    float64 // среднее напряжение
 	Power      float64 // средняя мощность
 	Current    float64 // средний ток
+	Torque     float64 // крутящий момент
 	StepIndex  int     // номер отчетного периода
 }
 
@@ -165,7 +168,8 @@ type ResultValues struct {
 	voltage    float64 // итоговое напряжение
 	power      float64 // итоговая мощность
 	current    float64 // итоговый ток
-	duration   int     // итоговое время симуляции, ms
+	torque     float64 // крутящий момент
+	duration   int64   // итоговое время симуляции, ms
 }
 
 // Пакет simulation: метод симуляции работы PWM-генератора.
@@ -177,17 +181,24 @@ type ResultValues struct {
 // частота pwm.pwmFrequency - единица измерения Hz
 // elapsed - единица измерения миллисекунды
 func (pwm *pwmGenerator) signal(elapsed int64) float64 {
+	fmt.Printf("elapsed=%d\n", elapsed)
 	// Вычисляем период меандра в миллисекундах, где 1e3 - количество миллисекунд в одной секунде
 	period := 1e3 / pwm.frequency
+	fmt.Printf("F=%d T=%d\n", pwm.frequency, period)
 
 	// Вычисляем время, прошедшее с начала текущего периода меандра
 	t := elapsed % period
+	fmt.Printf("t=%d\n", t)
 
 	// Вычисляем скважность меандра в долях единицы (от 0 до 1)
 	duty := float64(pwm.duty) / 100
+	fmt.Printf("D=%f\n", duty)
 
-	// Определяем, находится ли текущий момент времени внутри активной фазы меандра
-	inActivePhase := float64(t) < float64(period)*duty
+	// Определяем, находится ли текущий момент времени внутри активной фазы меандра:
+	// определяем, находимся ли мы в точке перехода от активной к неактивной фазе меандра,  
+	// и если это так, то считаем, что мы находимся вне активной фазы меандра.
+	inActivePhase := (float64(t) < float64(period)*duty) || (float64(t) == float64(period)/2)
+	fmt.Printf("Active?=%t\n", inActivePhase)
 
 	// Вычисляем напряжение в зависимости от того, находимся ли мы внутри активной фазы меандра
 	var voltage float64
@@ -197,8 +208,11 @@ func (pwm *pwmGenerator) signal(elapsed int64) float64 {
 		voltage = pwm.minVoltage
 	}
 
+	fmt.Printf("V=%f\n", voltage)
+
 	return voltage
 }
+
 
 // Метод  Simulate выполняет моделирование работы мотора.
 // Данный метод будет имитировать работу мотора управляемого ШИМ-сигналом
@@ -225,6 +239,7 @@ func (s *Simulation) Simulate() {
 	sumVoltage := 0.0
 	sumPower := 0.0
 	sumCurrent := 0.0
+	sumTorque := 0.0
 
 	for i := int64(0); i < aveNumSteps; i++ {
 		// Инициализируем переменные для суммирования значений на каждом шаге
@@ -234,6 +249,7 @@ func (s *Simulation) Simulate() {
 		curVoltage := 0.0
 		curPower := 0.0
 		curCurrent := 0.0
+		curTorque := 0.0
 
 		// Запускаем цикл, который будет выполняться в течение указанного количества шагов
 		for j := int64(0); j < curNumSteps; j++ {
@@ -244,13 +260,16 @@ func (s *Simulation) Simulate() {
 			// Вычисляем сигнал ШИМ на текущем шаге
 			cur.pwmVoltage = s.pwm.signal(currentTime)
 			// Вычисляем напряжение на двигателе на текущем шаге
-			cur.voltage = s.voltage(cur.pwmVoltage)
+			cur.voltage = s.nominal.calcVoltage(cur.pwmVoltage)
 			// Вычисляем ток на двигателе на текущем шаге
-			cur.current = s.current(cur.pwmVoltage, s.nominal.statorResistance)
+			cur.current = s.nominal.calcCurrent(cur.pwmVoltage)
 			// Вычисляем мощность на двигателе на текущем шаге
-			cur.power = s.power(cur.voltage, cur.current)
+			cur.power = s.nominal.calcPower(cur.voltage, cur.current)
 			// Вычисляем скорость вращения двигателя на текущем шаге
-			cur.speed = s.speed(cur.power)
+			cur.speed = s.nominal.calcSpeed(cur.power)
+			// Вычисляем крутящий момент на текущем шаге
+			cur.torque = s.nominal.calcTorque(cur.speed)
+
 			// Обновляем текущие значения
 			cur.stepIndex = int(j)
 			// Добавляем текущие значения в сумму значений на каждом шаге
@@ -260,6 +279,7 @@ func (s *Simulation) Simulate() {
 			curPower += cur.power
 			curCurrent += cur.current
 			curSpeed += cur.speed
+			curTorque += cur.torque
 			// Добавляем текущие значения в список значений текущего шага
 			s.currval = append(s.currval, cur)
 		}
@@ -270,41 +290,100 @@ func (s *Simulation) Simulate() {
 		ave.Voltage = curVoltage / float64(curNumSteps)
 		ave.Power = curPower / float64(curNumSteps)
 		ave.Current = curCurrent / float64(curNumSteps)
-		ave.Speed = curVoltage / float64(curNumSteps)
+		ave.Speed = curSpeed / float64(curNumSteps)
+		ave.Torque = curTorque / float64(curNumSteps)
 
-		sumPwmVoltage += curPwmVoltage
-		sumPwmCurrent += curCurrent
-		sumVoltage += curVoltage
-		sumPower += curPower
-		sumCurrent += curCurrent
-		sumSpeed += curSpeed
+		sumPwmVoltage += ave.PWMVoltage
+		sumPwmCurrent += ave.PWMCurrent
+		sumVoltage += ave.Voltage
+		sumPower += ave.Power
+		sumCurrent += ave.Current
+		sumSpeed += ave.Speed
+		sumTorque += ave.Torque
 
 		s.AverVal = append(s.AverVal, ave)
 	}
 
 	// Записываем средние значения в структуру Simulation
-	s.RestVal.pwmVoltage = sumPwmVoltage
-	s.RestVal.pwmCurrent = sumPwmCurrent
-	s.RestVal.voltage = sumVoltage
-	s.RestVal.power = sumPower
-	s.RestVal.current = sumCurrent
-	s.RestVal.speed = sumSpeed
+	s.RestVal = &ResultValues{
+		pwmVoltage: sumPwmVoltage,
+		pwmCurrent: sumPwmCurrent,
+		voltage:    sumVoltage,
+		power:      sumPower,
+		current:    sumCurrent,
+		speed:      sumSpeed,
+		torque:     sumTorque,
+		duration:   aveNumSteps * curNumSteps * curStepTime,
+	}
 }
 
-func (s *Simulation) voltage(v float64) float64 {
-	return v
+func (m *dcMotor) calcVoltage(pwmV float64) float64 {
+	return pwmV
 }
 
-func (s *Simulation) current(v float64, r float64) float64 {
-	return v / r
+func (m *dcMotor) calcCurrent(v float64) float64 {
+	return (v - m.emConstant*m.maxSpeed) / m.statorResistance
 }
 
-func (s *Simulation) power(v float64, i float64) float64 {
-	return v * i
+func (m *dcMotor) calcPower(v float64, i float64) float64 {
+	return v * i * m.efficiency
 }
 
-func (s *Simulation) speed(p float64) float64 {
-	return p
+// Функция speed возвращает скорость вращения двигателя на основе переданной мощности
+// Формула: speed = (power * emConstant - loadTorque) / (torqueConstant * maxCurrent)
+// Рассчитывает скорость вращения мотора при заданной мощности и нагрузке
+func (m *dcMotor) calcSpeed(power float64) float64 {
+	// Рассчитываем крутящий момент на валу мотора
+	torque := (power*m.torqueConstant)/m.voltage - m.loadTorque
+
+	// Ограничиваем крутящий момент максимальным значением
+	if torque > m.maxCurrent*m.torqueConstant {
+		torque = m.maxCurrent * m.torqueConstant
+	}
+
+	// Рассчитываем угловое ускорение
+	angularAcceleration := (torque * m.emConstant) / (m.statorInductance * m.emConstant)
+
+	// Ограничиваем угловое ускорение максимальным значением
+	if angularAcceleration > m.maxCurrent/m.statorInductance {
+		angularAcceleration = m.maxCurrent / m.statorInductance
+	}
+
+	// Рассчитываем скорость вращения мотора
+	speed := m.maxSpeed * (1 - (angularAcceleration / (m.maxCurrent / m.statorInductance)))
+
+	// Ограничиваем скорость максимальным значением
+	if speed > m.maxSpeed {
+		speed = m.maxSpeed
+	}
+
+	return speed
+}
+
+// Рассчитывает крутящий момент на валу мотора при заданной скорости вращения
+func (m *dcMotor) calcTorque(speed float64) float64 {
+	// Ограничиваем скорость максимальным значением
+	if speed > m.maxSpeed {
+		speed = m.maxSpeed
+	}
+
+	// Рассчитываем угловое ускорение
+	angularAcceleration := m.maxCurrent / m.statorInductance * (1 - (speed / m.maxSpeed))
+
+	// Ограничиваем угловое ускорение максимальным значением
+	if angularAcceleration > m.maxCurrent/m.statorInductance {
+		angularAcceleration = m.maxCurrent / m.statorInductance
+	}
+
+	// Рассчитываем крутящий момент на валу мотора
+	torque := (m.statorInductance * angularAcceleration) / m.emConstant
+
+	// Ограничиваем крутящий момент максимальным значением
+	if torque > m.maxCurrent*m.torqueConstant {
+		torque = m.maxCurrent * m.torqueConstant
+	}
+
+	return torque
 }
 
 // Тип обработчика полученного результата симуляции в SaveResult
