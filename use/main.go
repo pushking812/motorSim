@@ -92,7 +92,7 @@ func main() {
 	fmt.Println("File converting to SVG: ", filename)
 }
 
-func saveResults(s *simulation.Simulation, outputHandler simulation.OutputHandler, filename string) (string, error) {
+func saveResults(s *simulation.Simulation, oh simulation.OutputHandler, filename string) (string, error) {
 	// Открытие файла для записи результатов
 	outfile, err := os.Create(filename)
 	if err != nil {
@@ -103,10 +103,13 @@ func saveResults(s *simulation.Simulation, outputHandler simulation.OutputHandle
 	ofn := outfile.Name()
 
 	// Вызов обработчика для преобразования результата и сохранения результатов в файл определенного формата
-	err = s.SaveResult(outputHandler, ofn)
+	err = s.SaveResult(oh, ofn)
 	if err != nil {
 		return "", fmt.Errorf("error saving result to file %s: %v", ofn, err)
 	}
 
 	return ofn, nil
 }
+
+
+

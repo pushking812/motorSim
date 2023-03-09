@@ -24,11 +24,11 @@ func Output(filename string, results *simulation.Simulation) error {
 	writer.Write(header)
 
 	// Записываем данные симуляции в CSV-файл
-	for _, point := range results.Points {
+	for i, point := range results.GetAveValues() {
 		record := []string{
-			strconv.FormatFloat(point.Time.Seconds(), 'f', -1, 64),
+			strconv.FormatFloat(float64(i), 'f', -1, 64),
 			strconv.FormatFloat(point.Speed, 'f', -1, 64),
-			strconv.FormatFloat(point.Torque, 'f', -1, 64),
+			strconv.FormatFloat(point.Power, 'f', -1, 64),
 			strconv.FormatFloat(point.Voltage, 'f', -1, 64),
 			strconv.FormatFloat(point.Current, 'f', -1, 64),
 		}

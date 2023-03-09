@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"time"
 )
 
 // Структура MotConfig, пакета config: номинальные параметры мотора, загружаются при запуске программы
@@ -43,13 +42,13 @@ type PWMConfig struct {
 	MinVoltage float64 `json:"min_voltage"` // Напряжение пассивной фазы
 	MaxVoltage float64 `json:"max_voltage"` // Напряжение активной фазы ШИМ-генератора
 	Duty       float64 `json:"duty"`        // Скважность ШИМ-генератора
-	Frequency  float64 `json:"frequency"`   // Частота ШИМ-генератора
+	Frequency  int64 `json:"frequency"`   // Частота ШИМ-генератора
 }
 
 // Структура SimConfig, пакета config: конфигурация время и шаг симуляции
 type SimConfig struct {
-	Duration time.Duration `json:"duration"` // Длительность симуляции, секунды
-	Step     time.Duration `json:"step"`     // Шаг симуляции, миллисекунды
+	Duration int64 `json:"duration"` // Длительность симуляции, секунды
+	Step     int64 `json:"step"`     // Шаг симуляции, миллисекунды
 }
 
 // Структура Config, пакета config: конфигурация программы и параметры симуляции
@@ -80,6 +79,9 @@ func LoadConfig(filename string) (*Config, error) {
 
 	// Декодирование JSON в структуру Config
 	var cfg Config
+	cfg.lock.RLock()
+	defer cfg.lock.RUnlock()
+
 	err = json.Unmarshal(data, &cfg)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding config file: %v", err)
@@ -90,78 +92,78 @@ func LoadConfig(filename string) (*Config, error) {
 	return &cfg, nil
 }
 
-func (cfg *Config) getValueByName(name string) (interface{}, error) {
-	fields := strings.Split(name, ".")
-	var val interface{} = cfg
-	for _, field := range fields {
-		var ok bool
-		val, ok = reflect.ValueOf(val).Elem().FieldByName(strings.Title(field)).Interface(), true
-		if !ok {
-			return nil, fmt.Errorf("field %s not found", name)
-		}
-	}
-	return val, nil
-}
+// func (cfg *Config) getValueByName(name string) (interface{}, error) {
+// 	fields := strings.Split(name, ".")
+// 	var val interface{} = cfg
+// 	for _, field := range fields {
+// 		var ok bool
+// 		val, ok = reflect.ValueOf(val).Elem().FieldByName(strings.Title(field)).Interface(), true
+// 		if !ok {
+// 			return nil, fmt.Errorf("field %s not found", name)
+// 		}
+// 	}
+// 	return val, nil
+// }
 
-func (cfg *Config) GetInt(name string) (int, error) {
-	cfg.lock.RLock()
-	defer cfg.lock.RUnlock()
+// func (cfg *Config) GetInt(name string) (int, error) {
+// 	cfg.lock.RLock()
+// 	defer cfg.lock.RUnlock()
 
-	val, err := cfg.getValueByName(name)
-	if err != nil {
-		return 0, err
-	}
+// 	val, err := cfg.getValueByName(name)
+// 	if err != nil {
+// 		return 0, err
+// 	}
 
-	if intVal, ok := val.(int); ok {
-		return intVal, nil
-	}
-	return 0, fmt.Errorf("field %s is not of type int", name)
-}
+// 	if intVal, ok := val.(int); ok {
+// 		return intVal, nil
+// 	}
+// 	return 0, fmt.Errorf("field %s is not of type int", name)
+// }
 
-func (cfg *Config) GetString(name string) (string, error) {
-	cfg.lock.RLock()
-	defer cfg.lock.RUnlock()
+// func (cfg *Config) GetString(name string) (string, error) {
+// 	cfg.lock.RLock()
+// 	defer cfg.lock.RUnlock()
 
-	val, err := cfg.getValueByName(name)
-	if err != nil {
-		return "", err
-	}
+// 	val, err := cfg.getValueByName(name)
+// 	if err != nil {
+// 		return "", err
+// 	}
 
-	if strVal, ok := val.(string); ok {
-		return strVal, nil
-	}
-	return "", fmt.Errorf("field %s is not of type string", name)
-}
+// 	if strVal, ok := val.(string); ok {
+// 		return strVal, nil
+// 	}
+// 	return "", fmt.Errorf("field %s is not of type string", name)
+// }
 
-func (cfg *Config) GetDuration(name string) (time.Duration, error) {
-	cfg.lock.RLock()
-	defer cfg.lock.RUnlock()
+// func (cfg *Config) GetDuration(name string) (time.Duration, error) {
+// 	cfg.lock.RLock()
+// 	defer cfg.lock.RUnlock()
 
-	val, err := cfg.getValueByName(name)
-	if err != nil {
-		return 0, err
-	}
+// 	val, err := cfg.getValueByName(name)
+// 	if err != nil {
+// 		return 0, err
+// 	}
 
-	if durVal, ok := val.(time.Duration); ok {
-		return durVal, nil
-	}
-	return 0, fmt.Errorf("field %s is not of type time.Duration", name)
-}
+// 	if durVal, ok := val.(time.Duration); ok {
+// 		return durVal, nil
+// 	}
+// 	return 0, fmt.Errorf("field %s is not of type time.Duration", name)
+// }
 
-func (cfg *Config) GetFloat64(name string) (float64, error) {
-	cfg.lock.RLock()
-	defer cfg.lock.RUnlock()
+// func (cfg *Config) GetFloat64(name string) (float64, error) {
+// 	cfg.lock.RLock()
+// 	defer cfg.lock.RUnlock()
 
-	val, err := cfg.getValueByName(name)
-	if err != nil {
-		return 0, err
-	}
+// 	val, err := cfg.getValueByName(name)
+// 	if err != nil {
+// 		return 0, err
+// 	}
 
-	if floatVal, ok := val.(float64); ok {
-		return floatVal, nil
-	}
-	return 0, fmt.Errorf("field %s is not of type float64", name)
-}
+// 	if floatVal, ok := val.(float64); ok {
+// 		return floatVal, nil
+// 	}
+// 	return 0, fmt.Errorf("field %s is not of type float64", name)
+// }
 
 func (cfg *Config) SetParam(name string, value interface{}) error {
 	cfg.lock.Lock()
@@ -187,5 +189,57 @@ func (cfg *Config) SetParam(name string, value interface{}) error {
 	}
 
 	val.Set(reflect.ValueOf(value))
+	return nil
+}
+
+func (c *Config) GetMap(key string, subKey string) map[string]interface{} {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	switch key {
+	case "sim_config":
+		if config, ok := c.SimConfigs[subKey]; ok {
+			return map[string]interface{}{
+				"duration": config.Duration,
+				"step":     config.Step,
+			}
+		}
+	case "pwm_config":
+		if config, ok := c.PWMConfigs[subKey]; ok {
+			return map[string]interface{}{
+				"name":        config.Name,
+				"min_voltage": config.MinVoltage,
+				"max_voltage": config.MaxVoltage,
+				"frequency":   config.Frequency,
+				"duty":        config.Duty,
+			}
+		}
+	case "mot_config":
+		if config, ok := c.MotConfigs[subKey]; ok {
+			return map[string]interface{}{
+				"name":       config.Name,
+				"voltage":    config.Voltage,
+				"power":      config.Power,
+				"current":    config.Current,
+				"statres":    config.StatorResistance,
+				"emc":        config.EMConstant,
+				"statine":    config.StatorInductance,
+				"efficiency": config.Efficiency,
+				"maxcurr":    config.MaxCurrent,
+				"maxspeed":   config.MaxSpeed,
+				"torque":     config.TorqueConstant,
+				"loadtorque": config.LoadTorque,
+			}
+		}
+	case "env_config":
+		if config, ok := c.EnvConfigs[subKey]; ok {
+			return map[string]interface{}{
+				"name":        config.Name,
+				"temperature": config.Temperature,
+				"humidity":    config.Humidity,
+				"pressure":    config.Pressure,
+			}
+		}
+	}
 	return nil
 }

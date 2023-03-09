@@ -16,9 +16,9 @@ type Simulation struct {
 	pwm     *pwmGenerator // параметры симуляции, PWM-генератор
 	simtime *simTime      // параметры симуляции, время и шаг симуляции
 
-	current []currentValues // текущие значения параметров при симуляции, за шаг симуляции
-	average []AverageValues // средние значения параметров при симуляции, за период времени
-	result  *ResultValues   // итоговые значения параметров при симуляции, итоговые за симуляцию
+	currval []currentValues // текущие значения параметров при симуляции, за шаг симуляции
+	AverVal []AverageValues // средние значения параметров при симуляции, за период времени
+	RestVal *ResultValues   // итоговые значения параметров при симуляции, итоговые за симуляцию
 
 	lock sync.RWMutex
 }
@@ -35,9 +35,9 @@ func NewSimulation(cfg *config.Config) (*Simulation, error) {
 		nominal: NewDCMotor(cfg),
 		env:     NewEnvironment(cfg),
 		simtime: NewSimTime(cfg),
-		current: make([]currentValues, 0),
-		average: make([]AverageValues, 0),
-		result:  &ResultValues{},
+		currval: make([]currentValues, 0),
+		AverVal: make([]AverageValues, 0),
+		RestVal: &ResultValues{},
 		pwm:     NewPWMGenerator(cfg),
 	}, nil
 }
@@ -96,8 +96,8 @@ func NewEnvironment(cfg *config.Config) *environment {
 
 // время и шаг симуляции
 type simTime struct {
-	duration time.Duration // длительность симуляции
-	step     time.Duration // шаг симуляции
+	duration int64 // длительность симуляции
+	step     int64 // шаг симуляции
 }
 
 // время и шаг симуляции
@@ -113,7 +113,7 @@ type pwmGenerator struct {
 	minVoltage float64 // Напряжение пассивной фазы
 	maxVoltage float64 // Напряжение активной фазы ШИМ-генератора
 	duty       float64 // Скважность ШИМ-генератора
-	frequency  float64 // Частота ШИМ-генератора
+	frequency  int64   // Частота ШИМ-генератора
 }
 
 // Конструктор пакета simulation: инициализация параметров ШИМ-генератора
@@ -131,6 +131,7 @@ func NewPWMGenerator(cfg *config.Config) *pwmGenerator {
 type currentValues struct {
 	pwmVoltage float64 // текущее напряжение pwm
 	pwmCurrent float64 // текущий ток pwm
+	speed      float64 // текущие обороты
 	voltage    float64 // текущее напряжение
 	power      float64 // текущая мощность
 	current    float64 // текущий ток
@@ -141,13 +142,17 @@ type currentValues struct {
 // за ед. времени, используются для расчета итоговых значений показателей симуляции, а также
 // для создания графических или текстовых отчетов
 type AverageValues struct {
-	pwmVoltage float64 // среднее напряжение pwm
-	pwmCurrent float64 // средний ток pwm
-	speed      float64 // средние обороты
-	voltage    float64 // среднее напряжение
-	power      float64 // средняя мощность
-	current    float64 // средний ток
-	stepIndex  int     // номер отчетного периода
+	PWMVoltage float64 // среднее напряжение pwm
+	PWMCurrent float64 // средний ток pwm
+	Speed      float64 // средние обороты
+	Voltage    float64 // среднее напряжение
+	Power      float64 // средняя мощность
+	Current    float64 // средний ток
+	StepIndex  int     // номер отчетного периода
+}
+
+func (s *Simulation) GetAveValues() []AverageValues {
+	return s.AverVal
 }
 
 // Пакет simulation, структура ResultValues: содержит итоговые значения показателей симуляции
@@ -170,9 +175,10 @@ type ResultValues struct {
 // напряжение меняется от pwm.minVoltage до pwm.maxVoltage,
 // скважность pwm.pwmDuty - значение от 0 до 100,
 // частота pwm.pwmFrequency - единица измерения Hz
-func (pwm *pwmGenerator) signal(elapsed time.Duration) float64 {
-	// Вычисляем период меандра в наносекундах, где 1e9 - количество наносекунд в одной секунде
-	period := time.Duration(int64(1e9 / pwm.frequency))
+// elapsed - единица измерения миллисекунды
+func (pwm *pwmGenerator) signal(elapsed int64) float64 {
+	// Вычисляем период меандра в миллисекундах, где 1e3 - количество миллисекунд в одной секунде
+	period := 1e3 / pwm.frequency
 
 	// Вычисляем время, прошедшее с начала текущего периода меандра
 	t := elapsed % period
@@ -181,7 +187,7 @@ func (pwm *pwmGenerator) signal(elapsed time.Duration) float64 {
 	duty := float64(pwm.duty) / 100
 
 	// Определяем, находится ли текущий момент времени внутри активной фазы меандра
-	inActivePhase := t < time.Duration(float64(period)*duty)
+	inActivePhase := float64(t) < float64(period)*duty
 
 	// Вычисляем напряжение в зависимости от того, находимся ли мы внутри активной фазы меандра
 	var voltage float64
@@ -199,32 +205,106 @@ func (pwm *pwmGenerator) signal(elapsed time.Duration) float64 {
 // в течение определенного времени с определенным шагом.
 // func (m *dcMotor) Simulate() error
 // error - ошибка, возникающая при некорректных входных параметрах или при выполнении операций в методе.
-func (s *Simulation) Simulate() error {
+func (s *Simulation) Simulate() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	countCur := 10
+	ave := AverageValues{}
 
-	// Определяем число итераций countAve моделирования на основе длительности моделирования и шага
-	// моделирования s.duration и s.step
-	for i := 0; i < int(s.simtime.duration/s.simtime.step); i++ { // итерации Ave
+	// Рассчитываем количество шагов, которые нужно выполнить
+	aveNumSteps := s.simtime.duration / s.simtime.step
+	aveStepTime := s.simtime.step
 
-		for j := 0; j < countCur; j++ { // итерации текущие
-			// pwm.signal(время с начала эмуляции)
-			// Получаем текущее напряжение pwm от pwm.signal() pwmVoltage
-			// Раситываем текущий ток pwm на основании pwm напряжения pwmCurrent
-			// Текущее напряжение мотора = текущее напряжение pwm. voltage
-			// Текущий ток мотора = текущий ток pwm. current
-			// Текущая мощность = по формуле. power
-			// записываем номер шага симуляции stepIndex=j
-			// считаем средее результаты j сохраняем в s.currrenValues.
+	const curNumSteps = 10
+	curStepTime := s.simtime.step / curNumSteps
+
+	//time.Duration(j) * s.simtime.duration
+	sumPwmVoltage := 0.0
+	sumPwmCurrent := 0.0
+	sumSpeed := 0.0
+	sumVoltage := 0.0
+	sumPower := 0.0
+	sumCurrent := 0.0
+
+	for i := int64(0); i < aveNumSteps; i++ {
+		// Инициализируем переменные для суммирования значений на каждом шаге
+		curPwmVoltage := 0.0
+		curPwmCurrent := 0.0
+		curSpeed := 0.0
+		curVoltage := 0.0
+		curPower := 0.0
+		curCurrent := 0.0
+
+		// Запускаем цикл, который будет выполняться в течение указанного количества шагов
+		for j := int64(0); j < curNumSteps; j++ {
+			// Создаем структуру для хранения текущих значений на каждом шаге
+			cur := currentValues{}
+			// Вычисляем текущее время
+			currentTime := i*aveStepTime + j*curStepTime
+			// Вычисляем сигнал ШИМ на текущем шаге
+			cur.pwmVoltage = s.pwm.signal(currentTime)
+			// Вычисляем напряжение на двигателе на текущем шаге
+			cur.voltage = s.voltage(cur.pwmVoltage)
+			// Вычисляем ток на двигателе на текущем шаге
+			cur.current = s.current(cur.pwmVoltage, s.nominal.statorResistance)
+			// Вычисляем мощность на двигателе на текущем шаге
+			cur.power = s.power(cur.voltage, cur.current)
+			// Вычисляем скорость вращения двигателя на текущем шаге
+			cur.speed = s.speed(cur.power)
+			// Обновляем текущие значения
+			cur.stepIndex = int(j)
+			// Добавляем текущие значения в сумму значений на каждом шаге
+			curPwmVoltage += cur.pwmVoltage
+			curPwmCurrent += cur.current
+			curVoltage += cur.voltage
+			curPower += cur.power
+			curCurrent += cur.current
+			curSpeed += cur.speed
+			// Добавляем текущие значения в список значений текущего шага
+			s.currval = append(s.currval, cur)
 		}
-		// считаем средее результаты i сохраняем в s.AverageValues.
-	}
-	// считаем среднее
 
-	// Итоговые
-	return nil
+		// Вычисляем средние значения на каждом шаге
+		ave.PWMVoltage = curPwmVoltage / float64(curNumSteps)
+		ave.PWMCurrent = curPwmCurrent / float64(curNumSteps)
+		ave.Voltage = curVoltage / float64(curNumSteps)
+		ave.Power = curPower / float64(curNumSteps)
+		ave.Current = curCurrent / float64(curNumSteps)
+		ave.Speed = curVoltage / float64(curNumSteps)
+
+		sumPwmVoltage += curPwmVoltage
+		sumPwmCurrent += curCurrent
+		sumVoltage += curVoltage
+		sumPower += curPower
+		sumCurrent += curCurrent
+		sumSpeed += curSpeed
+
+		s.AverVal = append(s.AverVal, ave)
+	}
+
+	// Записываем средние значения в структуру Simulation
+	s.RestVal.pwmVoltage = sumPwmVoltage
+	s.RestVal.pwmCurrent = sumPwmCurrent
+	s.RestVal.voltage = sumVoltage
+	s.RestVal.power = sumPower
+	s.RestVal.current = sumCurrent
+	s.RestVal.speed = sumSpeed
+}
+
+func (s *Simulation) voltage(v float64) float64 {
+	return v
+}
+
+func (s *Simulation) current(v float64, r float64) float64 {
+	return v / r
+}
+
+func (s *Simulation) power(v float64, i float64) float64 {
+	return v * i
+}
+
+func (s *Simulation) speed(p float64) float64 {
+	return p
 }
 
 // Тип обработчика полученного результата симуляции в SaveResult
@@ -254,13 +334,6 @@ func (s *Simulation) SaveResult(out OutputHandler, filename string) error {
 // Описание: Функция реализуется в пакете output/csvout - отвечающем за запись результатов симуляции в CSV-файл.
 // Тело пакета и функции нужно сгенерировать
 
-// package config
-type Config struct {
-	Filename string `json:"output_filename"`
-	// [другие параметры работы программы и симуляции]
-	// [...]
-}
-
 // Таймер для измерения времени симуляции
 type Timer struct {
 	startTime time.Time
@@ -268,16 +341,13 @@ type Timer struct {
 }
 
 // Метод для начала отсчета времени
-func (t *Timer) Start() {
-	t.startTime = time.Now()
+func TimerStart() *Timer {
+	ts := time.Now()
+	return &Timer{ts, ts}
 }
 
 // Метод для окончания отсчета времени
-func (t *Timer) End() {
+func (t *Timer) TimerStop() time.Duration {
 	t.endTime = time.Now()
-}
-
-// Метод для получения разницы времени, us
-func (t *Timer) Elapsed() time.Duration {
 	return time.Duration(t.endTime.Sub(t.startTime).Microseconds())
 }
