@@ -3,7 +3,6 @@ package simulation
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -181,24 +180,24 @@ type ResultValues struct {
 // частота pwm.pwmFrequency - единица измерения Hz
 // elapsed - единица измерения миллисекунды
 func (pwm *pwmGenerator) signal(elapsed int64) float64 {
-	fmt.Printf("elapsed=%d\n", elapsed)
+	//fmt.Printf("elapsed=%d\n", elapsed)
 	// Вычисляем период меандра в миллисекундах, где 1e3 - количество миллисекунд в одной секунде
 	period := 1e3 / pwm.frequency
-	fmt.Printf("F=%d T=%d\n", pwm.frequency, period)
+	//fmt.Printf("F=%d T=%d\n", pwm.frequency, period)
 
 	// Вычисляем время, прошедшее с начала текущего периода меандра
 	t := elapsed % period
-	fmt.Printf("t=%d\n", t)
+	//fmt.Printf("t=%d\n", t)
 
 	// Вычисляем скважность меандра в долях единицы (от 0 до 1)
 	duty := float64(pwm.duty) / 100
-	fmt.Printf("D=%f\n", duty)
+	//fmt.Printf("D=%f\n", duty)
 
 	// Определяем, находится ли текущий момент времени внутри активной фазы меандра:
-	// определяем, находимся ли мы в точке перехода от активной к неактивной фазе меандра,  
+	// определяем, находимся ли мы в точке перехода от активной к неактивной фазе меандра,
 	// и если это так, то считаем, что мы находимся вне активной фазы меандра.
 	inActivePhase := (float64(t) < float64(period)*duty) || (float64(t) == float64(period)/2)
-	fmt.Printf("Active?=%t\n", inActivePhase)
+	//fmt.Printf("Active?=%t\n", inActivePhase)
 
 	// Вычисляем напряжение в зависимости от того, находимся ли мы внутри активной фазы меандра
 	var voltage float64
@@ -208,11 +207,10 @@ func (pwm *pwmGenerator) signal(elapsed int64) float64 {
 		voltage = pwm.minVoltage
 	}
 
-	fmt.Printf("V=%f\n", voltage)
+	//fmt.Printf("V=%f\n", voltage)
 
 	return voltage
 }
-
 
 // Метод  Simulate выполняет моделирование работы мотора.
 // Данный метод будет имитировать работу мотора управляемого ШИМ-сигналом
