@@ -3,6 +3,8 @@
 package simulation
 
 import (
+	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -24,17 +26,73 @@ func TestPWMGeneratorSignal(t *testing.T) {
 	}
 }
 
-func TestSimulation_Simulate(t *testing.T) {
-	tests := []struct {
-		name string
-		s    *Simulation
-	}{
-		// TODO: Add test cases.
+func TestSimulate(t *testing.T) {
+	// инициализация параметров симуляции
+	motor := &dcMotor{
+		voltage:          12,
+		power:            5,
+		current:          1,
+		statorResistance: 50,
+		emConstant:       0.05,
+		statorInductance: 0.001,
+		efficiency:       0.85,
+		maxCurrent:       2,
+		maxSpeed:         2000,
+		torqueConstant:   0.1,
+		loadTorque:       5,
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.s.Simulate()
-		})
+	env := &environment{
+		temperature: 25,
+		humidity:    50,
+		pressure:    760,
+	}
+	pwm := &pwmGenerator{
+		minVoltage: 0,
+		maxVoltage: 12,
+		duty:       0.5,
+		frequency:  1000,
+	}
+	st := &simTime{
+		duration: 1000,
+		step:     10,
+	}
+
+	sim := &Simulation{
+		nominal: motor,
+		env:     env,
+		pwm:     pwm,
+		simtime: st,
+
+		currval: []currentValues{},
+		AverVal: []AverageValues{},
+		RestVal: &ResultValues{},
+	}
+
+	// вызов симуляции
+	sim.Simulate()
+
+	// проверка результатов
+	expectedCurrval := []currentValues{
+		{stepIndex: 0, voltage: 12, current: 20, speed: 0},
+		// и т.д, заполнить еще 19 строками
+	}
+	if !reflect.DeepEqual(sim.currval, expectedCurrval) {
+		t.Errorf("unexpected currval: got %v, expected %v", sim.currval, expectedCurrval)
+	}
+
+	expectedAverVal := []AverageValues{
+		{StepIndex: 0, Current: 20, Speed: 0},
+		// и т.д, заполнить еще 1 строкой
+	}
+
+	if !reflect.DeepEqual(sim.AverVal, expectedAverVal) {
+		t.Errorf("unexpected averVal: got %v, expected %v", sim.AverVal, expectedAverVal)
+	}
+
+	expectedRestVal := &ResultValues{duration: /*формула*/ 0, current: 20, speed: 0}
+
+	if !reflect.DeepEqual(sim.RestVal, expectedRestVal) {
+		t.Errorf("unexpected averVal: got %v, expected %v", sim.AverVal, expectedAverVal)
 	}
 }
 
@@ -66,20 +124,36 @@ func TestDcMotorCalcPower(t *testing.T) {
 	}
 }
 
-func TestDcMotorCalcSpeed(t *testing.T) {
-	motor := &dcMotor{emConstant: 0.5, maxSpeed: 1000, statorResistance: 5, efficiency: 0.8, torqueConstant: 0.1, maxCurrent: 10, voltage: 12, loadTorque: 0}
+func TestDcMotorCalcTorque(t *testing.T) {
+	motor := &dcMotor{
+		torqueConstant: 0.1,
+		maxCurrent:     10,
+		voltage:        12,
+		loadTorque:     0,
+	}
 	power := 50.0
-	expected := 333.3333333333333
-	if output := motor.calcSpeed(power); output != expected {
-		t.Errorf("calcSpeed(%v) = %v, expected %v", power, output, expected)
+	expected := 0.417
+	if output := motor.calcTorque(power); (expected - output) > 0.001 {
+		t.Errorf("calcTorque(%v) = %v, expected %v", power, output, expected)
 	}
 }
 
-func TestDcMotorCalcTorque(t *testing.T) {
-	motor := &dcMotor{emConstant: 0.5, maxSpeed: 1000, statorResistance: 5, efficiency: 0.8, torqueConstant: 0.1, maxCurrent: 10, voltage: 12, loadTorque: 0}
-	speed := 500.0
-	expected := 0.09142857142857143
-	if output := motor.calcTorque(speed); output != expected {
-		t.Errorf("calcTorque(%v) = %v, expected %v", speed, output, expected)
+func TestDcMotorCalcSpeed(t *testing.T) {
+	motor := &dcMotor{
+		emConstant:       0.5,
+		maxSpeed:         1000,
+		torqueConstant:   0.1,
+		maxCurrent:       10,
+		voltage:          12,
+		loadTorque:       0,
+		statorInductance: 0.001,
 	}
+	power := 50.0
+	torque := 0.417
+	expected := 958.3
+
+	if output := motor.calcSpeed(power, torque); (expected - output) > 0.001 {
+		t.Errorf("calcSpeed(%v) = %v, expected %v", power, output, expected)
+	}
+	fmt.Printf("power: %f, torque: %f, speed: %f\n", power, torque, expected)
 }

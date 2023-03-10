@@ -262,10 +262,10 @@ func (s *Simulation) Simulate() {
 			cur.current = s.nominal.calcCurrent(cur.pwmVoltage)
 			// Вычисляем мощность на двигателе на текущем шаге
 			cur.power = s.nominal.calcPower(cur.voltage, cur.current)
-			// Вычисляем скорость вращения двигателя на текущем шаге
-			cur.speed = s.nominal.calcSpeed(cur.power)
 			// Вычисляем крутящий момент на текущем шаге
-			cur.torque = s.nominal.calcTorque(cur.speed)
+			cur.torque = s.nominal.calcTorque(cur.power)
+			// Вычисляем скорость вращения двигателя на текущем шаге
+			cur.speed = s.nominal.calcSpeed(cur.power, cur.torque)
 
 			// Обновляем текущие значения
 			cur.stepIndex = int(j)
@@ -303,13 +303,13 @@ func (s *Simulation) Simulate() {
 
 	// Записываем средние значения в структуру Simulation
 	s.RestVal = &ResultValues{
-		pwmVoltage: sumPwmVoltage,
-		pwmCurrent: sumPwmCurrent,
-		voltage:    sumVoltage,
-		power:      sumPower,
-		current:    sumCurrent,
-		speed:      sumSpeed,
-		torque:     sumTorque,
+		pwmVoltage: sumPwmVoltage / float64(aveNumSteps),
+		pwmCurrent: sumPwmCurrent / float64(aveNumSteps),
+		voltage:    sumVoltage / float64(aveNumSteps),
+		power:      sumPower / float64(aveNumSteps),
+		current:    sumCurrent / float64(aveNumSteps),
+		speed:      sumSpeed / float64(aveNumSteps),
+		torque:     sumTorque / float64(aveNumSteps),
 		duration:   aveNumSteps * curNumSteps * curStepTime,
 	}
 }
@@ -326,13 +326,10 @@ func (m *dcMotor) calcPower(v float64, i float64) float64 {
 	return v * i * m.efficiency
 }
 
-// Функция speed возвращает скорость вращения двигателя на основе переданной мощности
-// Формула: speed = (power * emConstant - loadTorque) / (torqueConstant * maxCurrent)
-// Рассчитывает скорость вращения мотора при заданной мощности и нагрузке
-func (m *dcMotor) calcSpeed(power float64) float64 {
-	// Рассчитываем крутящий момент на валу мотора
-	torque := (power*m.torqueConstant)/m.voltage - m.loadTorque
-
+// Функция speed возвращает скорость вращения двигателя на основе переданной мощности и крутящего момента
+// Формула: speed = (power * emConstant - torque) / (torqueConstant * maxCurrent)
+// Рассчитывает скорость вращения мотора при заданной мощности и крутящем моменте
+func (m *dcMotor) calcSpeed(power, torque float64) float64 {
 	// Ограничиваем крутящий момент максимальным значением
 	if torque > m.maxCurrent*m.torqueConstant {
 		torque = m.maxCurrent * m.torqueConstant
@@ -357,23 +354,10 @@ func (m *dcMotor) calcSpeed(power float64) float64 {
 	return speed
 }
 
-// Рассчитывает крутящий момент на валу мотора при заданной скорости вращения
-func (m *dcMotor) calcTorque(speed float64) float64 {
-	// Ограничиваем скорость максимальным значением
-	if speed > m.maxSpeed {
-		speed = m.maxSpeed
-	}
-
-	// Рассчитываем угловое ускорение
-	angularAcceleration := m.maxCurrent / m.statorInductance * (1 - (speed / m.maxSpeed))
-
-	// Ограничиваем угловое ускорение максимальным значением
-	if angularAcceleration > m.maxCurrent/m.statorInductance {
-		angularAcceleration = m.maxCurrent / m.statorInductance
-	}
-
+// Рассчитывает крутящий момент на валу мотора при заданной мощности и нагрузке
+func (m *dcMotor) calcTorque(power float64) float64 {
 	// Рассчитываем крутящий момент на валу мотора
-	torque := (m.statorInductance * angularAcceleration) / m.emConstant
+	torque := (power*m.torqueConstant)/m.voltage - m.loadTorque
 
 	// Ограничиваем крутящий момент максимальным значением
 	if torque > m.maxCurrent*m.torqueConstant {
