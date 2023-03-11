@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/pushking812/motorSim/config"
+	"github.com/pushking812/motorSim/output"
 	"github.com/pushking812/motorSim/output/csvout"
 	"github.com/pushking812/motorSim/output/svgout"
 	"github.com/pushking812/motorSim/simulation"
@@ -76,23 +77,23 @@ func main() {
 
 	// Инициализация модели симуляции работы мотора
 	// func NewSimulation(cfg *config.Config) (*simulation.Simulation, error)
-	s, err := simulation.NewSimulation(cfg)
+	s, err := simulation.NewSimulation(cfg) //s
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	filename, _ := saveResults(s, csvout.Output, cfg.OutputFile)
+	filename, _ := saveResults(&output.Result{}, &csvout.CSV{}, cfg.OutputFile)
 	fmt.Println("File converting to CVS: ", filename)
 
 	// type outputHandler func(filename string) error
 	// func (s *Simulation) SaveResult(out outputHandler) error
-	filename, _ = saveResults(s, svgout.Output, cfg.OutputFile)
+	filename, _ = saveResults(&output.Result{}, &svgout.SVG{}, cfg.OutputFile)
 
 	fmt.Println("File converting to SVG: ", filename)
 }
 
-func saveResults(s *simulation.Simulation, oh simulation.OutputHandler, filename string) (string, error) {
+func saveResults(r output.Resulter, o output.Outputer, filename string) (string, error) {
 	// Открытие файла для записи результатов
 	outfile, err := os.Create(filename)
 	if err != nil {
@@ -103,13 +104,12 @@ func saveResults(s *simulation.Simulation, oh simulation.OutputHandler, filename
 	ofn := outfile.Name()
 
 	// Вызов обработчика для преобразования результата и сохранения результатов в файл определенного формата
-	err = s.SaveResult(oh, ofn)
+	out := output.NewOutput(r, o, ofn)
+
+	err = out.SaveResult()
 	if err != nil {
 		return "", fmt.Errorf("error saving result to file %s: %v", ofn, err)
 	}
 
 	return ofn, nil
 }
-
-
-

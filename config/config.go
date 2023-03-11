@@ -42,13 +42,13 @@ type PWMConfig struct {
 	MinVoltage float64 `json:"min_voltage"` // Напряжение пассивной фазы
 	MaxVoltage float64 `json:"max_voltage"` // Напряжение активной фазы ШИМ-генератора
 	Duty       float64 `json:"duty"`        // Скважность ШИМ-генератора
-	Frequency  int64 `json:"frequency"`   // Частота ШИМ-генератора
+	Frequency  int64   `json:"frequency"`   // Частота ШИМ-генератора
 }
 
 // Структура SimConfig, пакета config: конфигурация время и шаг симуляции
 type SimConfig struct {
-	Duration int64 `json:"duration"` // Длительность симуляции, секунды
-	Step     int64 `json:"step"`     // Шаг симуляции, миллисекунды
+	Duration float64 `json:"duration"` // Длительность симуляции, секунды
+	Step     float64 `json:"step"`     // Шаг симуляции, миллисекунды
 }
 
 // Структура Config, пакета config: конфигурация программы и параметры симуляции

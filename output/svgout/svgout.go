@@ -2,7 +2,10 @@ package svgout
 
 import "github.com/pushking812/motorSim/simulation"
 
+type SVG struct {
+}
+
 // DrawResults рисует графики результатов симуляции и сохраняет их в SVG-файл
-func Output(filename string, results *simulation.Simulation) error {
+func (s *SVG) SaveOutput(filename string, results *simulation.Simulation) error {
 	return nil
 }

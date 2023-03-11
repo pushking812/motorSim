@@ -8,8 +8,11 @@ import (
 	"github.com/pushking812/motorSim/simulation"
 )
 
+type CSV struct {
+}
+
 // Output записывает результаты симуляции в CSV-файл
-func Output(filename string, results *simulation.Simulation) error {
+func (s *CSV) SaveOutput(filename string, results *simulation.Simulation) error {
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
