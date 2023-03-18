@@ -1,6 +1,6 @@
 package output
 
-import "github.com/pushking812/motorSim/simulation"
+import "github.com/pushking812/motorsim/simulation"
 
 type Outputer interface {
 	SaveOutput(filename string, results *simulation.Simulation) error

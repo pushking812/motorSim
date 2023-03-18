@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/pushking812/motorSim/config"
+	"github.com/pushking812/motorsim/config"
 )
 
 // Пакет simulation, структура DCMotor: содержит номинальные параметры мотора,

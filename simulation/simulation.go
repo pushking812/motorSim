@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pushking812/motorSim/config"
-	"github.com/pushking812/motorSim/simulation/dcmotor"
+	"github.com/pushking812/motorsim/config"
+	"github.com/pushking812/motorsim/simulation/dcmotor"
 )
 
 type Simulator interface {

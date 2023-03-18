@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/pushking812/motorSim/config"
+	"github.com/pushking812/motorsim/config"
 )
 
 // Структура пакета simulation: параметры ШИМ-генератора.

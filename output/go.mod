@@ -1,4 +1,4 @@
-module github.com/pushking812/motorSim/output
+module github.com/pushking812/motorsim/output
 
 go 1.20
 

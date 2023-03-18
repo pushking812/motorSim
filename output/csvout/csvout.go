@@ -5,7 +5,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/pushking812/motorSim/simulation"
+	"github.com/pushking812/motorsim/simulation"
 )
 
 type CSV struct {

@@ -6,11 +6,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/pushking812/motorSim/config"
-	"github.com/pushking812/motorSim/output"
-	"github.com/pushking812/motorSim/output/csvout"
-	"github.com/pushking812/motorSim/output/svgout"
-	"github.com/pushking812/motorSim/simulation"
+	"github.com/pushking812/motorsim/config"
+	"github.com/pushking812/motorsim/output"
+	"github.com/pushking812/motorsim/output/csvout"
+	"github.com/pushking812/motorsim/output/svgout"
+	"github.com/pushking812/motorsim/simulation"
 )
 
 var paramMap = map[string]interface{}{

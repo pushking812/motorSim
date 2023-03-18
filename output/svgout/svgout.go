@@ -1,6 +1,6 @@
 package svgout
 
-import "github.com/pushking812/motorSim/simulation"
+import "github.com/pushking812/motorsim/simulation"
 
 type SVG struct {
 }
